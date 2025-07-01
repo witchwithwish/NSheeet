@@ -1,0 +1,57 @@
++ <!DOCTYPE html>
++ <html lang="en">
++ <head>
++     <meta charset="UTF-8">
++     <meta name="viewport" content="width=device-width, initial-scale=1.0">
++     <title>Request Details - ID #<%= request.id %></title>
++     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
++     <link rel="stylesheet" href="/style.css">
++ </head>
++ <body>
++     <div class="container mt-5">
++         <div class="d-flex justify-content-between align-items-center mb-3">
++             <h1 class="h2">Request Details</h1>
++             <a href="/status" class="btn btn-secondary">← Back to Status Board</a>
++         </div>
++ 
++         <div class="card">
++             <div class="card-header bg-primary text-white">
++                 <div class="d-flex justify-content-between">
++                     <span>Request ID: #<%= request.id %></span>
++                     <span>Submitted: <%= request.submittedAt %></span>
++                 </div>
++             </div>
++             <div class="card-body">
++                 <h5 class="card-title">Requester Information</h5>
++                 <ul class="list-group list-group-flush mb-4">
++                     <li class="list-group-item"><strong>Name:</strong> <%= request.requesterName %></li>
++                     <li class="list-group-item"><strong>Phone:</strong> <%= request.requesterPhone %></li>
++                     <li class="list-group-item"><strong>Department:</strong> <%= request.department %></li>
++                     <li class="list-group-item"><strong>Position:</strong> <%= request.Position %></li>
++                 </ul>
++ 
++                 <h5 class="card-title">Service Details</h5>
++                 <ul class="list-group list-group-flush">
++                     <li class="list-group-item"><strong>Service Type:</strong> <%= request.serviceType %></li>
++                     <li class="list-group-item">
++                         <strong>Status:</strong> 
++                         <% 
++                             let badgeClass = 'bg-secondary';
++                             if (request.status.includes('Approved')) { badgeClass = 'bg-success'; } 
++                             else if (request.status.includes('Disapproved')) { badgeClass = 'bg-danger'; } 
++                             else if (request.status.includes('Pending')) { badgeClass = 'bg-warning text-dark'; }
++                         %>
++                         <span class="badge <%= badgeClass %>"><%= request.status %></span>
++                     </li>
++                     <li class="list-group-item">
++                         <strong>Full Details:</strong>
++                         <div class="p-2 bg-light border rounded mt-2">
++                             <p style="white-space: pre-wrap;"><%= request.details %></p>
++                         </div>
++                     </li>
++                 </ul>
++             </div>
++         </div>
++     </div>
++ </body>
++ </html>

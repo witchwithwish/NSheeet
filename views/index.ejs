@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-key="title">IT Service Request</title>
+    <link rel="icon" type="https://www.aktio.co.th/images/favicon.ico" href="https://www.aktio.co.th/images/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="public/style.css">
+</head>
+<body>
+    <header class="main-header text-center">
+        <img src="https://www.aktio.co.th/images/aktio_th.jpg" alt="Company Logo" class="logo-img" width="300" height="100">
+    </header>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Aktio IT Service</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#" data-key="home">หน้าแรก</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/status" data-key="status">สถานะคำขอทั้งหมด</a>
+                    </li>
+                   
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span data-key="language">ภาษา</span>
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                            <li><a class="dropdown-item" href="#" data-lang="th">ไทย</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="en">English</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="card-title h3" data-key="formTitle">แจ้งปัญหา/ขอใช้บริการ IT</h1>
+                    <a href="/status" class="btn btn-outline-primary" data-key="viewAllStatus">ดูสถานะทั้งหมด</a>
+                </div>
+            <div class="body">
+                <form action="/submit" method="POST">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label" data-key="requesterName">ชื่อผู้แจ้ง</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label" data-key="contactPhone">เบอร์โทรศัพท์ติดต่อ</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="position" class="form-label" data-key="position">ตำแหน่ง</label>
+                            <input type="text" class="form-control" id="position" name="position">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="department" class="form-label" data-key="department">แผนก</label>
+                            <select class="form-select" id="department" name="department" required>
+                                <option value="" selected disabled data-key="selectDepartmentOption">-- กรุณาเลือกแผนก --</option>
+                                <option value="GA_dep">แผนก General Affairs(GA)</option>
+                                <option value="IT_dep">แผนก Infomation Technology(IT)</option>
+                                <option value="FA_dep">แผนก Factory(FA)</option>
+                                <option value="FN_dep">แผนก Financial(FN)</option>
+                                <option value="MC_dep">แผนก Machine Control(MC)</option>
+                                <option value="SL_dep">แผนก Sales(SL)</option>
+                                <option value="ST_dep">แผนก Safety(ST)</option>
+                                <option value="FT_dep">แผนก Front(FT)</option>
+                                <option value="SV_dep">แผนก Services(SV)</option>
+                                <option value="CC_dep">แผนก Credit Control(CC)</option>
+                                <option value="BP_dep">แผนก Bang Pa In(BP)</option>
+                                <option value="BW_dep">แผนก Bor Win(BW)</option>
+                                <option value="KR_dep">แผนก Ko Rat(KR)</option>
+                                <option value="KK_dep">แผนก Khon Kean(KK)</option>
+                                <option value="MP_dep">แผนก Map Ta Phut(MP)</option>
+                                <option value="LC_dep">แผนก Laem Chabang(LC)</option>
+                                <option value="PK_dep">แผนก Phayao(PK)</option>
+                                <option value="PY_dep">แผนก Phuket(PK)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="serviceType" class="form-label" data-key="serviceType">ประเภทบริการ</label>
+                            <select class="form-select" id="serviceType" name="serviceType" required>
+                                <option value="" selected disabled data-key="selectOption">-- กรุณาเลือก --</option>
+                                <option value="Hardware" data-key="hardwareOption">Hardware</option>
+                                <option value="Software" data-key="softwareOption">Software</option>
+                                <option value="etc" data-key="etcOption">อื่นๆ (etc.)</option>
+                            </select>
+                        </div>
+
+                        <div id="hardwareField" class="col-md-6" style="display: none;">
+                            <label for="assetID" class="form-label" data-key="hardwareAsset">อุปกรณ์</label>
+                            <input type="text" class="form-control" id="assetID" name="assetID" data-key="hardwarePlaceholder" placeholder="กรอก อุปกรณ์ที่เสีย">
+                        </div>
+
+                        <div id="softwareField" class="col-md-6" style="display: none;">
+                            <label for="softwareName" class="form-label" data-key="softwareName">ชื่อโปรแกรม (Software Name)</label>
+                            <input type="text" class="form-control" id="softwareName" name="softwareName" data-key="softwarePlaceholder" placeholder="เช่น Microsoft Office, AutoCAD">
+                        </div>
+
+                        <div id="etcField" class="col-md-6" style="display: none;">
+                            <label for="otherTopic" class="form-label" data-key="otherTopic">หัวข้อเรื่อง</label>
+                            <input type="text" class="form-control" id="otherTopic" name="otherTopic" data-key="otherTopicPlaceholder" placeholder="เช่น ขออบรมการใช้งาน, ปรึกษาปัญหา">
+                        </div>
+
+                    </div>
+
+                    <div class="col md-6">
+                        <label for="details" class="form-label" data-key="details">รายละเอียดปัญหา/ความต้องการ</label>
+                        <textarea class="form-control" id="details" name="details" rows="4" required></textarea>
+                    </div>
+
+                    <hr>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" data-key="submitButton">Submit Request</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // โค้ด JavaScript เดิมของคุณ (สำหรับ serviceType)
+        document.addEventListener('DOMContentLoaded', function() {
+            const serviceTypeSelect = document.getElementById('serviceType');
+            const hardwareField = document.getElementById('hardwareField');
+            const softwareField = document.getElementById('softwareField');
+            const etcField = document.getElementById('etcField');
+
+            function handleServiceTypeChange() {
+                const selectedValue = serviceTypeSelect.value;
+                hardwareField.style.display = 'none';
+                softwareField.style.display = 'none';
+                etcField.style.display = 'none';
+
+                document.getElementById('assetID').value = '';
+                document.getElementById('softwareName').value = '';
+                document.getElementById('otherTopic').value = '';
+
+                if (selectedValue === 'Hardware') {
+                    hardwareField.style.display = 'block';
+                } else if (selectedValue === 'Software') {
+                    softwareField.style.display = 'block';
+                } else if (selectedValue === 'etc') {
+                    etcField.style.display = 'block';
+                }
+            }
+            serviceTypeSelect.addEventListener('change', handleServiceTypeChange);
+            // เรียกใช้ครั้งแรกเมื่อโหลดหน้าเพื่อแสดง field ที่ถูกต้องหากมีการโหลดค่าเริ่มต้น
+            handleServiceTypeChange();
+        });
+
+        // เพิ่มโค้ด JavaScript สำหรับเปลี่ยนภาษา
+        const translations = {
+            th: {
+                title: "แจ้งปัญหา/ขอใช้บริการ IT",
+                home: "หน้าแรก",
+                status: "สถานะคำขอทั้งหมด",
+                contact: "ติดต่อ",
+                language: "ภาษา",
+                formTitle: "แจ้งปัญหา/ขอใช้บริการ IT",
+                viewAllStatus: "ดูสถานะทั้งหมด",
+                requesterName: "ชื่อผู้แจ้ง",
+                contactPhone: "เบอร์โทรศัพท์ติดต่อ",
+                department: "แผนก",
+                selectDepartmentOption: "-- กรุณาเลือกแผนก --", // เพิ่มคีย์สำหรับแผนก
+                position: "ตำแหน่ง",
+                serviceType: "ประเภทบริการ",
+                selectOption: "-- กรุณาเลือก --",
+                hardwareOption: "Hardware",
+                softwareOption: "Software",
+                etcOption: "อื่นๆ (etc.)",
+                hardwareAsset: "อุปกรณ์",
+                hardwarePlaceholder: "กรอก อุปกรณ์ที่เสีย",
+                softwareName: "ชื่อโปรแกรม (Software Name)",
+                softwarePlaceholder: "เช่น Microsoft Office, AutoCAD",
+                otherTopic: "หัวข้อเรื่อง",
+                otherTopicPlaceholder: "เช่น ขออบรมการใช้งาน, ปรึกษาปัญหา",
+                details: "รายละเอียดปัญหา/ความต้องการ",
+                submitButton: "ส่งคำขอ"
+            },
+            en: {
+                title: "IT Service Request",
+                home: "Home",
+                status: "View All Requests",
+                contact: "Contact",
+                language: "Language",
+                formTitle: "IT Service Request Form",
+                viewAllStatus: "View All Status",
+                requesterName: "Requester Name",
+                contactPhone: "Contact Phone",
+                department: "Department",
+                selectDepartmentOption: "-- Select Department --", // เพิ่มคีย์สำหรับแผนก
+                position: "Position",
+                serviceType: "Service Type",
+                selectOption: "-- Please Select --",
+                hardwareOption: "Hardware",
+                softwareOption: "Software",
+                etcOption: "Others (etc.)",
+                hardwareAsset: "Asset ID",
+                hardwarePlaceholder: "Enter the broken asset",
+                softwareName: "Software Name",
+                softwarePlaceholder: "e.g., Microsoft Office, AutoCAD",
+                otherTopic: "Topic",
+                otherTopicPlaceholder: "e.g., Training Request, Problem Consultation",
+                details: "Problem/Requirement Details",
+                submitButton: "Submit Request"
+            }
+        };
+
+        function setLanguage(lang) {
+            document.documentElement.lang = lang; // ตั้งค่า lang attribute ของ <html>
+            document.querySelectorAll('[data-key]').forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    // สำหรับ placeholder ใน input
+                    if (element.tagName === 'INPUT' && element.hasAttribute('placeholder')) {
+                        element.setAttribute('placeholder', translations[lang][key]);
+                    } else if (element.tagName === 'OPTION' && element.closest('#department') && element.getAttribute('value') === '') {
+                        // ไม่ต้องทำอะไรกับ option ค่าว่างของ department เพราะมันจะถูกจัดการแยกต่างหาก
+                    }
+                    else {
+                        element.textContent = translations[lang][key];
+                    }
+                }
+            });
+            // อัปเดต placeholder สำหรับ select option
+            const serviceTypeSelect = document.getElementById('serviceType');
+            const selectedLangOptionService = serviceTypeSelect.querySelector(`option[value=""][data-key="selectOption"]`);
+            if (selectedLangOptionService) {
+                selectedLangOptionService.textContent = translations[lang]['selectOption'];
+            }
+            // อัปเดต text content สำหรับ option อื่นๆ ของ serviceType
+            serviceTypeSelect.querySelectorAll('option:not([value=""])').forEach(option => {
+                const key = option.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    option.textContent = translations[lang][key];
+                }
+            });
+
+            // อัปเดต text content สำหรับ department select
+            const departmentSelect = document.getElementById('department');
+            const selectedLangOptionDepartment = departmentSelect.querySelector(`option[value=""][data-key="selectDepartmentOption"]`);
+            if (selectedLangOptionDepartment) {
+                selectedLangOptionDepartment.textContent = translations[lang]['selectDepartmentOption'];
+            }
+            // ส่วนของ option ที่มีค่าแล้ว ไม่ต้องเปลี่ยน data-key เพราะค่าไม่เกี่ยวข้องกับการแปล
+        }
+
+        // เมื่อโหลดหน้าเว็บ ให้ตรวจสอบว่ามีภาษาที่เลือกไว้ใน localStorage หรือไม่
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLanguage = localStorage.getItem('selectedLanguage') || 'th'; // ค่าเริ่มต้นเป็นไทย
+            setLanguage(savedLanguage);
+
+            // เพิ่ม Event Listener สำหรับปุ่มเปลี่ยนภาษา
+            document.querySelectorAll('.dropdown-item[data-lang]').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault(); // ป้องกันการเปลี่ยนหน้า
+                    const lang = event.target.getAttribute('data-lang');
+                    setLanguage(lang);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

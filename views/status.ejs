@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="th"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-key="statusPageTitle">Request Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="public/style.css">
+    <style>
+        .sortable-header {
+            cursor: pointer;
+            user-select: none; /* Prevents text selection on click */
+        }
+        .sortable-header:hover {
+            background-color: #495057; /* A slightly lighter shade than table-dark for hover */
+        }
+        .sort-icon {
+            margin-left: 8px;
+            color: #adb5bd; /* A light grey color for the icon */
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header text-center">
+        <img src="https://www.aktio.co.th/images/aktio_th.jpg" alt="Company Logo" class="logo-img" width="100" height="100">
+    </header>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Aktio IT Service</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/" aria-current="page" data-key="home">หน้าแรก</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/status" data-key="status">สถานะคำขอทั้งหมด</a>
+                    </li>
+                    
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span data-key="language">ภาษา</span>
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                            <li><a class="dropdown-item" href="#" data-lang="th">ไทย</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="en">English</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h2" data-key="allServiceRequests">All Service Requests</h1>
+            <div>
+                <a href="/" class="btn btn-primary" data-key="newRequestBtn">New Request</a>
+                <% if (isAdmin) { %>
+                    <a href="/logout" class="btn btn-secondary" data-key="logoutBtn">Logout</a>
+                <% } else { %>
+                    <a href="/login" class="btn btn-secondary" data-key="adminLoginBtn">Admin Login</a>
+                <% } %>
+            </div>
+        </div>
+
+        <% if (isAdmin) { %>
+            <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                <span data-key="adminModeAlert">ตอนนี้เข้าสู่โหมด ADMIN แล้ว ท่านสามารถดูรายละเอียดและแก้ไขคำร้องได้</span>
+                <form action="/clear-all" method="POST" onsubmit="return confirm('Are you sure you want to delete ALL requests? This cannot be undone.');">
+                    <button type="submit" class="btn btn-danger btn-sm" data-key="clearAllRequestsBtn">Clear All Requests</button>
+                </form>
+            </div>
+        <% } %>
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="sortable-header" onclick="sortTable(this, 0, 'numeric')" data-key="tableHeaderNo">No. <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th data-key="tableHeaderSubmitted">Submitted</th>
+                                <th class="sortable-header" onclick="sortTable(this, 2)" data-key="tableHeaderName">Name <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="sortable-header" onclick="sortTable(this, 3)" data-key="tableHeaderDepartment">Department <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <th class="sortable-header" onclick="sortTable(this, 4)" data-key="tableHeaderServiceType">Service Type <i class="fa-solid fa-sort sort-icon"></i></th>
+                                <% if (isAdmin) { %>
+                                    <th data-key="tableHeaderProblem">Problem</th>
+                                    <th data-key="tableHeaderDetails">Details</th>
+                                    <th data-key="tableHeaderAction">Action</th>
+                                <% } %>
+                                <th class="sortable-header text-center align-middle" onclick="sortTable(this, isAdmin ? 8 : 5)" data-key="tableHeaderStatus">Status <i class="fa-solid fa-sort sort-icon"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="request-table-body">
+                            <% if (requests.length === 0) { %>
+                                <tr>
+                                    <td colspan="<%= isAdmin ? 9 : 6 %>" class="text-center" data-key="noRequestsFound">No requests found.</td>
+                                </tr>
+                            <% } else { %>
+                                <% requests.forEach(request => { %>
+                                    <tr>
+                                        <td><%= request.sort_order %></td>
+                                        <td><%= request.submittedAt %></td>
+                                        <td><%= request.requesterName %></td>
+                                        <td>
+                                            <% 
+                                                let departmentName = request.department;
+                                                switch(request.department) {
+                                                    case 'GA_dep': departmentName = 'แผนก General Affairs(GA)'; break;
+                                                    case 'IT_dep': departmentName = 'แผนก Infomation Technology(IT)'; break;
+                                                    case 'FA_dep': departmentName = 'แผนก Factory(FA)'; break;
+                                                    case 'FN_dep': departmentName = 'แผนก Financial(FN)'; break;
+                                                    case 'MC_dep': departmentName = 'แผนก Machine Control(MC)'; break;
+                                                    case 'SL_dep': departmentName = 'แผนก Sales(SL)'; break;
+                                                    case 'ST_dep': departmentName = 'แผนก Safety(ST)'; break;
+                                                    case 'FT_dep': departmentName = 'แผนก Front(FT)'; break;
+                                                    case 'SV_dep': departmentName = 'แผนก Services(SV)'; break;
+                                                    case 'CC_dep': departmentName = 'แผนก Credit Control(CC)'; break;
+                                                    case 'BP_dep': departmentName = 'แผนก Bang Pa In(BP)'; break;
+                                                    case 'BW_dep': departmentName = 'แผนก Bor Win(BW)'; break;
+                                                    case 'KR_dep': departmentName = 'แผนก Ko Rat(KR)'; break;
+                                                    case 'KK_dep': departmentName = 'แผนก Khon Kean(KK)'; break;
+                                                    case 'MP_dep': departmentName = 'แผนก Map Ta Phut(MP)'; break;
+                                                    case 'LC_dep': departmentName = 'แผนก Laem Chabang(LC)'; break;
+                                                    case 'PK_dep': departmentName = 'แผนก Phayao(PK)'; break;
+                                                    case 'PY_dep': departmentName = 'แผนก Phuket(PK)'; break;
+                                                    default: departmentName = request.department; // กรณีที่ไม่ตรงกับเงื่อนไข ให้ใช้ค่าเดิม
+                                                }
+                                            %>
+                                            <%= departmentName %>
+                                        </td>
+                                        <td>
+                                            <span data-key="serviceType_<%= request.serviceType.replace(/\s/g, '') %>"><%= request.serviceType %></span>
+                                        </td>
+                                        <% if (isAdmin) { %>
+                                            <td>
+                                                <% if (request.serviceType === 'Hardware') { %>
+                                                    <%= request.assetID %>
+                                                <% } else if (request.serviceType === 'Software') { %>
+                                                    <%= request.softwareName %>
+                                                <% } else if (request.serviceType === 'etc') { %>
+                                                    <%= request.otherTopic %>
+                                                <% } %>
+                                            </td>
+                                            <td><%= request.details %></td>
+                                            <td>
+                                                <form action="/delete/<%= request.id %>" method="POST" onsubmit="return confirm('Are you sure you want to delete this request?');">
+                                                    <button type="submit" class="btn btn-danger btn-sm" data-key="deleteButton">Delete</button>
+                                                </form>
+                                            </td>
+                                        <% } %>
+                                        <td class="text-center align-middle">
+                                            <% 
+                                                let badgeClass = 'bg-secondary';
+                                                if (request.status.includes('Approved')) { badgeClass = 'bg-success'; } 
+                                                else if (request.status.includes('Disapproved')) { badgeClass = 'bg-danger'; } 
+                                                else if (request.status.includes('Pending')) { badgeClass = 'bg-warning text-dark'; }
+                                            %>
+                                            <span class="badge <%= badgeClass %>" data-key="status_<%= request.status.replace(/\s/g, '') %>"><%= request.status %></span>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // โค้ด JavaScript เดิมสำหรับ sortTable
+        function sortTable(headerElement, columnIndex, dataType = 'string') {
+            const tbody = document.getElementById('request-table-body');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            const currentOrder = headerElement.dataset.sortOrder || 'desc';
+            const newOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+            headerElement.dataset.sortOrder = newOrder;
+
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.className = 'fa-solid fa-sort sort-icon';
+            });
+            headerElement.querySelector('.sort-icon').className = newOrder === 'asc' ? 'fa-solid fa-sort-up sort-icon' : 'fa-solid fa-sort-down sort-icon';
+
+            const sortedRows = rows.sort((a, b) => {
+                const cellA = a.cells[columnIndex].innerText.trim();
+                const cellB = b.cells[columnIndex].innerText.trim();
+
+                let valA, valB;
+
+                if (dataType === 'numeric') {
+                    valA = parseInt(cellA, 10);
+                    valB = parseInt(cellB, 10);
+                } else { // 'string'
+                    valA = cellA;
+                    valB = cellB;
+                }
+
+                if (valA < valB) {
+                    return newOrder === 'asc' ? -1 : 1;
+                }
+                if (valA > valB) {
+                    return newOrder === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+
+            tbody.innerHTML = '';
+            sortedRows.forEach(row => {
+                tbody.appendChild(row);
+            });
+        }
+
+        // เพิ่มโค้ด JavaScript สำหรับเปลี่ยนภาษา
+        const translations = {
+            th: {
+                statusPageTitle: "สถานะคำขอ",
+                home: "หน้าแรก",
+                status: "สถานะคำขอทั้งหมด",
+                contact: "ติดต่อ",
+                language: "ภาษา",
+                allServiceRequests: "คำขอใช้บริการทั้งหมด",
+                newRequestBtn: "สร้างคำขอใหม่",
+                logoutBtn: "ออกจากระบบ",
+                adminLoginBtn: "เข้าสู่ระบบผู้ดูแล",
+                adminModeAlert: "ตอนนี้เข้าสู่โหมด ADMIN แล้ว ท่านสามารถดูรายละเอียดและแก้ไขคำร้องได้",
+                clearAllRequestsBtn: "ลบคำขอทั้งหมด",
+                tableHeaderNo: "ลำดับ",
+                tableHeaderSubmitted: "วันที่ส่ง",
+                tableHeaderName: "ชื่อผู้แจ้ง",
+                tableHeaderDepartment: "แผนก",
+                tableHeaderServiceType: "ประเภทบริการ",
+                tableHeaderProblem: "ปัญหา",
+                tableHeaderDetails: "รายละเอียด",
+                tableHeaderAction: "การดำเนินการ",
+                tableHeaderStatus: "สถานะ",
+                noRequestsFound: "ไม่พบคำขอ",
+                deleteButton: "ลบ",
+                serviceType_Hardware: "ฮาร์ดแวร์", // ตัวอย่างการแปล serviceType
+                serviceType_Software: "ซอฟต์แวร์",
+                serviceType_etc: "อื่นๆ",
+                status_Approved: "อนุมัติแล้ว", // ตัวอย่างการแปลสถานะ
+                status_Disapproved: "ไม่อนุมัติ",
+                status_Pending: "รอดำเนินการ"
+            },
+            en: {
+                statusPageTitle: "Request Status",
+                home: "Home",
+                status: "All Requests",
+                contact: "Contact",
+                language: "Language",
+                allServiceRequests: "All Service Requests",
+                newRequestBtn: "New Request",
+                logoutBtn: "Logout",
+                adminLoginBtn: "Admin Login",
+                adminModeAlert: "You are currently in ADMIN mode. You can view details and modify requests.",
+                clearAllRequestsBtn: "Clear All Requests",
+                tableHeaderNo: "No.",
+                tableHeaderSubmitted: "Submitted",
+                tableHeaderName: "Name",
+                tableHeaderDepartment: "Department",
+                tableHeaderServiceType: "Service Type",
+                tableHeaderProblem: "Problem/Topic",
+                tableHeaderDetails: "Details",
+                tableHeaderAction: "Action",
+                tableHeaderStatus: "Status",
+                noRequestsFound: "No requests found.",
+                deleteButton: "Delete",
+                serviceType_Hardware: "Hardware",
+                serviceType_Software: "Software",
+                serviceType_etc: "Others",
+                status_Approved: "Approved",
+                status_Disapproved: "Disapproved",
+                status_Pending: "Pending"
+            }
+        };
+
+        function setLanguage(lang) {
+            document.documentElement.lang = lang; // ตั้งค่า lang attribute ของ <html>
+            document.querySelectorAll('[data-key]').forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    element.textContent = translations[lang][key];
+                }
+            });
+
+            // อัปเดต text content สำหรับแถว Service Type ในตาราง
+            document.querySelectorAll('#request-table-body tr').forEach(row => {
+                const serviceTypeElement = row.querySelector('td:nth-child(5) span'); // serviceType คือ td ลำดับที่ 5
+                if (serviceTypeElement) {
+                    const originalServiceType = serviceTypeElement.getAttribute('data-key').replace('serviceType_', '');
+                    if (translations[lang][`serviceType_${originalServiceType}`]) {
+                        serviceTypeElement.textContent = translations[lang][`serviceType_${originalServiceType}`];
+                    }
+                }
+                
+                // อัปเดต text content สำหรับแถว Status ในตาราง
+                const statusElement = row.querySelector('td:last-child span'); // สถานะคือ td ตัวสุดท้าย
+                if (statusElement) {
+                    const originalStatus = statusElement.getAttribute('data-key').replace('status_', '');
+                    if (translations[lang][`status_${originalStatus}`]) {
+                        statusElement.textContent = translations[lang][`status_${originalStatus}`];
+                    }
+                }
+
+                // อัปเดต text content สำหรับแถว Department ในตาราง
+                const departmentElement = row.querySelector('td:nth-child(4)'); // Department คือ td ลำดับที่ 4
+                if (departmentElement) {
+                    const departmentCode = departmentElement.textContent.trim();
+                    let translatedDepartment = departmentCode;
+                    switch(departmentCode) {
+                        case 'GA_dep': translatedDepartment = 'แผนก General Affairs(GA)'; break;
+                        case 'IT_dep': translatedDepartment = 'แผนก Information Technology(IT)'; break;
+                        case 'FA_dep': translatedDepartment = 'แผนก Factory(FA)'; break;
+                        case 'FN_dep': translatedDepartment = 'แผนก Financial(FN)'; break;
+                        case 'MC_dep': translatedDepartment = 'แผนก Machine Control(MC)'; break;
+                        case 'SL_dep': translatedDepartment = 'แผนก Sales(SL)'; break;
+                        case 'ST_dep': translatedDepartment = 'แผนก Safety(ST)'; break;
+                        case 'FT_dep': translatedDepartment = 'แผนก Front(FT)'; break;
+                        case 'SV_dep': translatedDepartment = 'แผนก Services(SV)'; break;
+                        case 'CC_dep': translatedDepartment = 'แผนก Credit Control(CC)'; break;
+                        case 'BP_dep': translatedDepartment = 'แผนก Bang Pa In(BP)'; break;
+                        case 'BW_dep': translatedDepartment = 'แผนก Bor Win(BW)'; break;
+                        case 'KR_dep': translatedDepartment = 'แผนก Ko Rat(KR)'; break;
+                        case 'KK_dep': translatedDepartment = 'แผนก Khon Kean(KK)'; break;
+                        case 'MP_dep': translatedDepartment = 'แผนก Map Ta Phut(MP)'; break;
+                        case 'LC_dep': translatedDepartment = 'แผนก Laem Chabang(LC)'; break;
+                        case 'PK_dep': translatedDepartment = 'แผนก Phayao(PK)'; break;
+                        case 'PY_dep': translatedDepartment = 'แผนก Phuket(PK)'; break;
+                    }
+                    departmentElement.textContent = translatedDepartment;
+                }
+            });
+
+            // เก็บภาษาที่เลือกไว้ใน localStorage
+            localStorage.setItem('selectedLanguage', lang);
+        }
+
+        // เมื่อโหลดหน้าเว็บ ให้ตรวจสอบว่ามีภาษาที่เลือกไว้ใน localStorage หรือไม่
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLanguage = localStorage.getItem('selectedLanguage') || 'th'; // ค่าเริ่มต้นเป็นไทย
+            setLanguage(savedLanguage);
+
+            // เพิ่ม Event Listener สำหรับปุ่มเปลี่ยนภาษา
+            document.querySelectorAll('.dropdown-item[data-lang]').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault(); // ป้องกันการเปลี่ยนหน้า
+                    const lang = event.target.getAttribute('data-lang');
+                    setLanguage(lang);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

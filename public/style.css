@@ -1,0 +1,39 @@
+body {
+    background-color: #f8f9fa;
+}
+.card {
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+.table {
+    vertical-align: middle;
+}
+.badge {
+    font-size: 0.9em;
+}
+
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sortable-header:hover {
+    background-color: #495057;
+}
+
+.sort-icon {
+    margin-left: 8px;
+    color: #adb5bd;
+}
+
+/* === CSS ที่เพิ่มเข้ามาใหม่ (แก้ไขรวมกันแล้ว) === */
+.main-header {
+    padding: 15px 0; /* หรือ 5px 0 เลือกเอาค่าที่ต้องการ */
+    background-color: #b51a15; /* สีพื้นหลังที่คุณต้องการ */
+}
+
+.logo-img {
+    height: 100px; /* แก้เป็น 100px เพราะ `100` ไม่มีหน่วย */
+    width: auto;
+}
+/* === จบส่วน CSS ที่แก้ไขแล้ว === */
