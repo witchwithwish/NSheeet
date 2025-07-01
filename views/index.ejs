@@ -1,412 +1,281 @@
-// server.js
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-key="title">IT Service Request</title>
+    <link rel="icon" type="https://www.aktio.co.th/images/favicon.ico" href="https://www.aktio.co.th/images/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="public/style.css">
+</head>
+<body>
+    <header class="main-header text-center">
+        <img src="https://www.aktio.co.th/images/aktio_th.jpg" alt="Company Logo" class="logo-img" width="300" height="100">
+    </header>
 
-// --- Import required modules ---
-const express = require('express');
-const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
-const fs = require('fs'); // ยังคงเก็บไว้เผื่อมีใช้ในอนาคต แต่ readDb/writeDb จะถูกแทนที่
-const path = require('path');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
-const mysql = require('mysql2/promise'); // เพิ่ม import สำหรับ mysql2/promise
-
-require('dotenv').config(); // Load environment variables from .env file.
-
-// --- Initialize Express app ---
-const app = express();
-const PORT = process.env.PORT || 3000;
-// const DB_PATH = path.join(__dirname, 'db.json'); // คอมเมนต์/ลบบรรทัดนี้
-
-// --- Database Connection Pool Setup ---
-let pool; // ใช้ Connection Pool เพื่อประสิทธิภาพที่ดีกว่า
-async function connectDb() {
-    try {
-        // ตรวจสอบว่า Environment Variables สำหรับ MySQL พร้อมหรือไม่
-        if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
-            console.error("MySQL database environment variables are not fully set. Please check DB_HOST, DB_USER, DB_PASSWORD, DB_NAME.");
-            // ใน Local Dev อาจจะให้แอปทำงานต่อโดยไม่ใช้ DB หรือหยุดแอปก็ได้
-            // ใน Production แนะนำให้หยุดแอปถ้าเชื่อมต่อ DB ไม่ได้
-            process.exit(1); // ออกจากแอปถ้าเชื่อมต่อ DB ไม่ได้
-            return;
-        }
-
-        pool = mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            waitForConnections: true,
-            connectionLimit: 10, // กำหนดจำนวน Connection สูงสุดใน Pool
-            queueLimit: 0,
-            // ssl: { // เปิดใช้งานถ้า MySQL Provider ของคุณบังคับใช้ SSL (แนะนำสำหรับ Production)
-            //     rejectUnauthorized: false // อาจจะต้องตั้งเป็น true หากใช้ Cert ที่ถูกต้อง
-            // }
-        });
-
-        // ทดสอบการเชื่อมต่อ
-        const connection = await pool.getConnection();
-        connection.release(); // คืน connection กลับ Pool ทันที
-        console.log("Connected to MySQL database via connection pool.");
-
-        // สร้างตารางถ้ายังไม่มี (Migration)
-        // ใช้ SQL Syntax สำหรับ MySQL (AUTO_INCREMENT PRIMARY KEY)
-        await pool.execute(`
-            CREATE TABLE IF NOT EXISTS requests (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                sort_order INT,
-                submittedAt VARCHAR(255),
-                requesterName VARCHAR(255),
-                requesterPhone VARCHAR(255),
-                department VARCHAR(255),
-                position VARCHAR(255),
-                serviceType VARCHAR(255),
-                details TEXT,
-                assetID VARCHAR(255),
-                softwareName VARCHAR(255),
-                otherTopic VARCHAR(255),
-                status VARCHAR(255),
-                approvalToken VARCHAR(255) UNIQUE
-            );
-        `);
-        console.log("Requests table ensured.");
-
-    } catch (err) {
-        console.error("Database connection error:", err);
-        process.exit(1); // ออกจากแอปถ้าเชื่อมต่อ DB ไม่ได้
-    }
-}
-// เรียกใช้ตอนเริ่มต้นแอป
-connectDb();
-
-// --- Middleware Setup ---
-app.set('view engine', 'ejs');
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
-
-// --- Session Middleware Setup ---
-app.use(session({
-    secret: process.env.SESSION_SECRET, 
-    resave: false,                     
-    saveUninitialized: false,          
-    cookie: { secure: process.env.NODE_ENV === 'production' } 
-}));
-
-// Middleware to make session data available to all templates
-app.use((req, res, next) => {
-    res.locals.isAdmin = req.session.isAdmin || false;
-    next();
-});
-
-// Middleware to protect admin routes
-const requireAdmin = (req, res, next) => {
-    if (!req.session.isAdmin) {
-        return res.redirect('/login');
-    }
-    next();
-};
-
-
-// --- Email Transporter Setup (using Nodemailer) ---
-let transporter;
-async function setupEmail() {
-    if (!process.env.EMAIL_HOST) {
-        console.log("Setting up Ethereal test email account...");
-        let testAccount = await nodemailer.createTestAccount();
-        console.log(`\n--- --- --- --- ---\nEthereal Email Inbox: https://ethereal.email/login\nUser: ${testAccount.user}\nPass: ${testAccount.pass}\n--- --- --- --- ---\n`);
-
-        transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false, 
-            auth: {
-                user: testAccount.user, 
-                pass: testAccount.pass, 
-            },
-        });
-
-    } else {
-        transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT,
-            secure: true, 
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-    }
-}
-setupEmail().catch(console.error);
-
-
-// --- Application Routes ---
-
-// --- Admin Login and Logout Routes ---
-app.get('/login', (req, res) => {
-    res.render('login', { error: req.query.error });
-});
-
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    const adminUsername = process.env.ADMIN_USERNAME;
-    const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
-
-    if (username === adminUsername && await bcrypt.compare(password, adminPasswordHash)) {
-        req.session.isAdmin = true;
-        res.redirect('/status');
-    } else {
-        res.redirect('/login?error=1');
-    }
-});
-
-app.get('/logout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            return res.redirect('/status');
-        }
-        res.redirect('/');
-    });
-});
-
-
-// --- User and Status Routes ---
-
-app.get('/', (req, res) => {
-    res.render('index');
-});
-
-app.post('/submit', async (req, res) => {
-    const { name, phone, department, position, serviceType, details, assetID, softwareName, otherTopic } = req.body;
-
-    try {
-        // ดึงค่า max_sort_order ปัจจุบัน
-        const [rows] = await pool.execute('SELECT MAX(sort_order) AS max_order FROM requests');
-        const maxOrder = rows[0].max_order || 0;
-
-        const newRequest = {
-            sort_order: maxOrder + 1,
-            submittedAt: new Date().toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }),
-            requesterName: name,
-            requesterPhone: phone,
-            department,
-            position,
-            serviceType,
-            details,
-            assetID: assetID || '',
-            softwareName: softwareName || '',
-            otherTopic: otherTopic || '',
-            status: 'Pending Manager Approval',
-            approvalToken: crypto.randomBytes(20).toString('hex')
-        };
-
-        // บันทึกข้อมูลลงฐานข้อมูลจริง
-        const insertQuery = `
-            INSERT INTO requests (sort_order, submittedAt, requesterName, requesterPhone, department, position, serviceType, details, assetID, softwareName, otherTopic, status, approvalToken)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const values = [
-            newRequest.sort_order,
-            newRequest.submittedAt,
-            newRequest.requesterName,
-            newRequest.requesterPhone,
-            newRequest.department,
-            newRequest.position,
-            newRequest.serviceType,
-            newRequest.details,
-            newRequest.assetID,
-            newRequest.softwareName,
-            newRequest.otherTopic,
-            newRequest.status,
-            newRequest.approvalToken
-        ];
-        const [insertResult] = await pool.execute(insertQuery, values);
-        newRequest.id = insertResult.insertId; // ได้ ID ที่ Auto-increment จาก DB มาใช้
-
-        // --- ส่วนการส่งอีเมลยังคงเดิม ---
-        let recipientManagerEmail;
-        switch (department) {
-            case 'HR_dep': recipientManagerEmail = process.env.HR_MANAGER_EMAIL; break;
-            case 'IT_dep': recipientManagerEmail = process.env.IT_MANAGER_EMAIL; break; 
-            case 'GA_dep': recipientManagerEmail = process.env.GA_MANAGER_EMAIL; break; 
-            case 'FA_dep': recipientManagerEmail = process.env.FA_MANAGER_EMAIL; break; 
-            case 'FN_dep': recipientManagerEmail = process.env.FN_MANAGER_EMAI; break; 
-            case 'MC_dep': recipientManagerEmail = process.env.MC_MANAGER_EMAIL; break; 
-            case 'SL_dep': recipientManagerEmail = process.env.SL_MANAGER_EMAIL; break; 
-            case 'ST_dep': recipientManagerEmail = process.env.ST_MANAGER_EMAIL; break; 
-            case 'FT_dep': recipientManagerEmail = process.env.FT_MANAGER_EMAIL; break; 
-            case 'SV_dep': recipientManagerEmail = process.env.SV_MANAGER_EMAIL; break; 
-            case 'CC_dep': recipientManagerEmail = process.env.CC_MANAGER_EMAIL; break; 
-            case 'BP_dep': recipientManagerEmail = process.env.BP_MANAGER_EMAIL; break; 
-            case 'BW_dep': recipientManagerEmail = process.env.BW_MANAGER_EMAIL; break; 
-            case 'KR_dep': recipientManagerEmail = process.env.KR_MANAGER_EMAIL; break; 
-            case 'KK_dep': recipientManagerEmail = process.env.KK_MANAGER_EMAIL; break; 
-            case 'MP_dep': recipientManagerEmail = process.env.MP_MANAGER_EMAIL; break; 
-            case 'LC_dep': recipientManagerEmail = process.env.LC_MANAGER_EMAIL; break; 
-            case 'PK_dep': recipientManagerEmail = process.env.PK_MANAGER_EMAIL; break; 
-            case 'PY_dep': recipientManagerEmail = process.env.PY_MANAGER_EMAIL; break; 
-
-            default:
-                console.warn(`Unknown department: ${department}. Sending email to default manager.`);
-                recipientManagerEmail = process.env.MANAGER_EMAIL_DEFAULT || 'default.manager@example.com';
-                break;
-        }
-
-        if (!recipientManagerEmail) {
-            console.error(`Manager email not configured for department: ${department}. Using 'default.manager@example.com'.`);
-            recipientManagerEmail = 'default.manager@example.com';
-        }
-
-        const appUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || `http://localhost:${PORT}`;
-        const approvalLink = `${appUrl}/approve/${newRequest.approvalToken}`;
-        const disapproveLink = `${appUrl}/disapprove/${newRequest.approvalToken}`;
-
-        const mailOptions = {
-            from: '"IT Request System" <no-reply@example.com>',
-            to: recipientManagerEmail,
-            subject: `ฟอร์มคำร้องไอที ต้องการอนุมัติ IT Request for Approval จากคุณ: ${newRequest.requesterName} - แผนก: ${newRequest.department}`,
-            html: `
-                <h1>มีคำร้องใหม่ New IT Service Request</h1>
-                <p>มีคำร้องที่ต้องขอการอนุมัติ</p>
-                <p>จาก </p>
-                <ul>
-                    <li><strong>ชื่อ-สกุล: </strong> ${newRequest.requesterName}</li>
-                    <li><strong>ตำแหน่ง:</strong> ${newRequest.position}</li>
-                    <li><strong>แผนก:</strong> ${newRequest.department}</li>
-                    <li><strong>ประเภทของคำร้อง: </strong> ${newRequest.serviceType}</li>
-                    <li><strong>รายละเอียด: </strong> ${newRequest.details}</li>
-                    ${newRequest.assetID ? `<li><strong>Asset ID:</strong> ${newRequest.assetID}</li>` : ''}
-                    ${newRequest.softwareName ? `<li><strong>Software Name:</strong> ${newRequest.softwareName}</li>` : ''}
-                    ${newRequest.otherTopic ? `<li><strong>Topic:</strong> ${newRequest.otherTopic}</li>` : ''}
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Aktio IT Service</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#" data-key="home">หน้าแรก</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/status" data-key="status">สถานะคำขอทั้งหมด</a>
+                    </li>
+                   
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span data-key="language">ภาษา</span>
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+                            <li><a class="dropdown-item" href="#" data-lang="th">ไทย</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="en">English</a></li>
+                        </ul>
+                    </li>
                 </ul>
-                <p>ความคิดเห็นของหัวหน้าแผนก Please review and take action:</p>
-                <br>
-                <div style="display: inline-block; white-space: nowrap;">
-                    <a href="${approvalLink}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">Approve</a>
-                    <a href="${disapproveLink}" style="display: inline-block; padding: 10px 20px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Disapprove</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="card-title h3" data-key="formTitle">แจ้งปัญหา/ขอใช้บริการ IT</h1>
+                    <a href="/status" class="btn btn-outline-primary" data-key="viewAllStatus">ดูสถานะทั้งหมด</a>
                 </div>
-            `
-        };
+            <div class="body">
+                <form action="/submit" method="POST">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label" data-key="requesterName">ชื่อผู้แจ้ง</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label" data-key="contactPhone">เบอร์โทรศัพท์ติดต่อ</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="position" class="form-label" data-key="position">ตำแหน่ง</label>
+                            <input type="text" class="form-control" id="position" name="position">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="department" class="form-label" data-key="department">แผนก</label>
+                            <select class="form-select" id="department" name="department" required>
+                                <option value="" selected disabled data-key="selectDepartmentOption">-- กรุณาเลือกแผนก --</option>
+                                <option value="GA_dep">แผนก General Affairs(GA)</option>
+                                <option value="IT_dep">แผนก Infomation Technology(IT)</option>
+                                <option value="FA_dep">แผนก Factory(FA)</option>
+                                <option value="FN_dep">แผนก Financial(FN)</option>
+                                <option value="MC_dep">แผนก Machine Control(MC)</option>
+                                <option value="SL_dep">แผนก Sales(SL)</option>
+                                <option value="ST_dep">แผนก Safety(ST)</option>
+                                <option value="FT_dep">แผนก Front(FT)</option>
+                                <option value="SV_dep">แผนก Services(SV)</option>
+                                <option value="CC_dep">แผนก Credit Control(CC)</option>
+                                <option value="BP_dep">แผนก Bang Pa In(BP)</option>
+                                <option value="BW_dep">แผนก Bor Win(BW)</option>
+                                <option value="KR_dep">แผนก Ko Rat(KR)</option>
+                                <option value="KK_dep">แผนก Khon Kean(KK)</option>
+                                <option value="MP_dep">แผนก Map Ta Phut(MP)</option>
+                                <option value="LC_dep">แผนก Laem Chabang(LC)</option>
+                                <option value="PK_dep">แผนก Phayao(PK)</option>
+                                <option value="PY_dep">แผนก Phuket(PK)</option>
+                            </select>
+                        </div>
+                    </div>
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) { return console.log(error); }
-            console.log('Manager approval email sent to %s: %s', recipientManagerEmail, info.messageId);
-            if (String(info.messageId).includes('ethereal.email')) {
-                console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="serviceType" class="form-label" data-key="serviceType">ประเภทบริการ</label>
+                            <select class="form-select" id="serviceType" name="serviceType" required>
+                                <option value="" selected disabled data-key="selectOption">-- กรุณาเลือก --</option>
+                                <option value="Hardware" data-key="hardwareOption">Hardware</option>
+                                <option value="Software" data-key="softwareOption">Software</option>
+                                <option value="etc" data-key="etcOption">อื่นๆ (etc.)</option>
+                            </select>
+                        </div>
+
+                        <div id="hardwareField" class="col-md-6" style="display: none;">
+                            <label for="assetID" class="form-label" data-key="hardwareAsset">อุปกรณ์</label>
+                            <input type="text" class="form-control" id="assetID" name="assetID" data-key="hardwarePlaceholder" placeholder="กรอก อุปกรณ์ที่เสีย">
+                        </div>
+
+                        <div id="softwareField" class="col-md-6" style="display: none;">
+                            <label for="softwareName" class="form-label" data-key="softwareName">ชื่อโปรแกรม (Software Name)</label>
+                            <input type="text" class="form-control" id="softwareName" name="softwareName" data-key="softwarePlaceholder" placeholder="เช่น Microsoft Office, AutoCAD">
+                        </div>
+
+                        <div id="etcField" class="col-md-6" style="display: none;">
+                            <label for="otherTopic" class="form-label" data-key="otherTopic">หัวข้อเรื่อง</label>
+                            <input type="text" class="form-control" id="otherTopic" name="otherTopic" data-key="otherTopicPlaceholder" placeholder="เช่น ขออบรมการใช้งาน, ปรึกษาปัญหา">
+                        </div>
+
+                    </div>
+
+                    <div class="col md-6">
+                        <label for="details" class="form-label" data-key="details">รายละเอียดปัญหา/ความต้องการ</label>
+                        <textarea class="form-control" id="details" name="details" rows="4" required></textarea>
+                    </div>
+
+                    <hr>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" data-key="submitButton">Submit Request</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // โค้ด JavaScript เดิมของคุณ (สำหรับ serviceType)
+        document.addEventListener('DOMContentLoaded', function() {
+            const serviceTypeSelect = document.getElementById('serviceType');
+            const hardwareField = document.getElementById('hardwareField');
+            const softwareField = document.getElementById('softwareField');
+            const etcField = document.getElementById('etcField');
+
+            function handleServiceTypeChange() {
+                const selectedValue = serviceTypeSelect.value;
+                hardwareField.style.display = 'none';
+                softwareField.style.display = 'none';
+                etcField.style.display = 'none';
+
+                document.getElementById('assetID').value = '';
+                document.getElementById('softwareName').value = '';
+                document.getElementById('otherTopic').value = '';
+
+                if (selectedValue === 'Hardware') {
+                    hardwareField.style.display = 'block';
+                } else if (selectedValue === 'Software') {
+                    softwareField.style.display = 'block';
+                } else if (selectedValue === 'etc') {
+                    etcField.style.display = 'block';
+                }
             }
+            serviceTypeSelect.addEventListener('change', handleServiceTypeChange);
+            // เรียกใช้ครั้งแรกเมื่อโหลดหน้าเพื่อแสดง field ที่ถูกต้องหากมีการโหลดค่าเริ่มต้น
+            handleServiceTypeChange();
         });
 
-        res.redirect('/status');
-
-    } catch (error) {
-        console.error("Error submitting request to database:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to submit request.' });
-    }
-});
-
-app.get('/status', async (req, res) => {
-    try {
-        const [rows] = await pool.execute('SELECT * FROM requests ORDER BY sort_order ASC'); // ดึงข้อมูลจาก DB
-        const requests = rows; // ข้อมูลที่ได้จาก DB
-        res.render('status', { requests: requests });
-    } catch (error) {
-        console.error("Error fetching requests from database:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to load requests.' });
-    }
-});
-
-// --- Handle Approval and Disapproval ---
-app.get('/approve/:token', async (req, res) => {
-    const { token } = req.params;
-    try {
-        const [rows] = await pool.execute('SELECT * FROM requests WHERE approvalToken = ? AND status = ?', [token, 'Pending Manager Approval']);
-        const request = rows[0];
-
-        if (!request) {
-            return res.status(404).render('message', { title: 'Error', message: '\nThis request was not found or has already been actioned.' });
-        }
-
-        await pool.execute('UPDATE requests SET status = ? WHERE id = ?', ['Approved, Pending IT', request.id]);
-
-        const itManagerEmail = process.env.IT_EMAIL || 'it.department@example.com';
-        const mailOptions = {
-            from: '"IT Request System" <no-reply@example.com>',
-            to: itManagerEmail,
-            subject: `[Approved] New IT Task Assigned จากคุณ ${request.requesterName} - แผนก: ${request.department}`,
-            html: `
-                <h1>A new IT task has been assigned to your department.</h1>
-                <p>This request has been approved by the manager.</p>
-                <h3>Request Details:</h3>
-                <ul>
-                    <li><strong>Name:</strong> ${request.requesterName}</li>
-                    <li><strong>Phone:</strong> ${request.requesterPhone}</li>
-                    <li><strong>Department:</strong> ${request.department}</li>
-                    <li><strong>Service Type:</strong> ${request.serviceType}</li>
-                    <li><strong>Details:</strong> ${request.details}</li>
-                    ${request.assetID ? `<li><strong>Asset ID:</strong> ${request.assetID}</li>` : ''}
-                    ${request.softwareName ? `<li><strong>Software Name:</strong> ${request.softwareName}</li>` : ''}
-                    ${request.otherTopic ? `<li><strong>Topic:</strong> ${request.otherTopic}</li>` : ''}
-                </ul>
-            `
+        // เพิ่มโค้ด JavaScript สำหรับเปลี่ยนภาษา
+        const translations = {
+            th: {
+                title: "แจ้งปัญหา/ขอใช้บริการ IT",
+                home: "หน้าแรก",
+                status: "สถานะคำขอทั้งหมด",
+                contact: "ติดต่อ",
+                language: "ภาษา",
+                formTitle: "แจ้งปัญหา/ขอใช้บริการ IT",
+                viewAllStatus: "ดูสถานะทั้งหมด",
+                requesterName: "ชื่อผู้แจ้ง",
+                contactPhone: "เบอร์โทรศัพท์ติดต่อ",
+                department: "แผนก",
+                selectDepartmentOption: "-- กรุณาเลือกแผนก --", // เพิ่มคีย์สำหรับแผนก
+                position: "ตำแหน่ง",
+                serviceType: "ประเภทบริการ",
+                selectOption: "-- กรุณาเลือก --",
+                hardwareOption: "Hardware",
+                softwareOption: "Software",
+                etcOption: "อื่นๆ (etc.)",
+                hardwareAsset: "อุปกรณ์",
+                hardwarePlaceholder: "กรอก อุปกรณ์ที่เสีย",
+                softwareName: "ชื่อโปรแกรม (Software Name)",
+                softwarePlaceholder: "เช่น Microsoft Office, AutoCAD",
+                otherTopic: "หัวข้อเรื่อง",
+                otherTopicPlaceholder: "เช่น ขออบรมการใช้งาน, ปรึกษาปัญหา",
+                details: "รายละเอียดปัญหา/ความต้องการ",
+                submitButton: "ส่งคำขอ"
+            },
+            en: {
+                title: "IT Service Request",
+                home: "Home",
+                status: "View All Requests",
+                contact: "Contact",
+                language: "Language",
+                formTitle: "IT Service Request Form",
+                viewAllStatus: "View All Status",
+                requesterName: "Requester Name",
+                contactPhone: "Contact Phone",
+                department: "Department",
+                selectDepartmentOption: "-- Select Department --", // เพิ่มคีย์สำหรับแผนก
+                position: "Position",
+                serviceType: "Service Type",
+                selectOption: "-- Please Select --",
+                hardwareOption: "Hardware",
+                softwareOption: "Software",
+                etcOption: "Others (etc.)",
+                hardwareAsset: "Asset ID",
+                hardwarePlaceholder: "Enter the broken asset",
+                softwareName: "Software Name",
+                softwarePlaceholder: "e.g., Microsoft Office, AutoCAD",
+                otherTopic: "Topic",
+                otherTopicPlaceholder: "e.g., Training Request, Problem Consultation",
+                details: "Problem/Requirement Details",
+                submitButton: "Submit Request"
+            }
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) { return console.log(error); }
-            console.log('IT Manager notification email sent to %s: %s', itManagerEmail, info.messageId);
-        });
+        function setLanguage(lang) {
+            document.documentElement.lang = lang; // ตั้งค่า lang attribute ของ <html>
+            document.querySelectorAll('[data-key]').forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    // สำหรับ placeholder ใน input
+                    if (element.tagName === 'INPUT' && element.hasAttribute('placeholder')) {
+                        element.setAttribute('placeholder', translations[lang][key]);
+                    } else if (element.tagName === 'OPTION' && element.closest('#department') && element.getAttribute('value') === '') {
+                        // ไม่ต้องทำอะไรกับ option ค่าว่างของ department เพราะมันจะถูกจัดการแยกต่างหาก
+                    }
+                    else {
+                        element.textContent = translations[lang][key];
+                    }
+                }
+            });
+            // อัปเดต placeholder สำหรับ select option
+            const serviceTypeSelect = document.getElementById('serviceType');
+            const selectedLangOptionService = serviceTypeSelect.querySelector(`option[value=""][data-key="selectOption"]`);
+            if (selectedLangOptionService) {
+                selectedLangOptionService.textContent = translations[lang]['selectOption'];
+            }
+            // อัปเดต text content สำหรับ option อื่นๆ ของ serviceType
+            serviceTypeSelect.querySelectorAll('option:not([value=""])').forEach(option => {
+                const key = option.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    option.textContent = translations[lang][key];
+                }
+            });
 
-        res.render('message', { title: 'Request Approved', message: `Request ID ${request.id} has been approved. \nThe IT department has been notified.` });
-    } catch (error) {
-        console.error("Error approving request:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to approve request.' });
-    }
-});
-
-app.get('/disapprove/:token', async (req, res) => {
-    const { token } = req.params;
-    try {
-        const [rows] = await pool.execute('SELECT * FROM requests WHERE approvalToken = ? AND status = ?', [token, 'Pending Manager Approval']);
-        const request = rows[0];
-
-        if (!request) {
-            return res.status(440).render('message', { title: 'Error', message: '\nThis request was not found or has already been actioned.' });
+            // อัปเดต text content สำหรับ department select
+            const departmentSelect = document.getElementById('department');
+            const selectedLangOptionDepartment = departmentSelect.querySelector(`option[value=""][data-key="selectDepartmentOption"]`);
+            if (selectedLangOptionDepartment) {
+                selectedLangOptionDepartment.textContent = translations[lang]['selectDepartmentOption'];
+            }
+            // ส่วนของ option ที่มีค่าแล้ว ไม่ต้องเปลี่ยน data-key เพราะค่าไม่เกี่ยวข้องกับการแปล
         }
 
-        await pool.execute('UPDATE requests SET status = ? WHERE approvalToken = ?', ['Disapproved', token]);
+        // เมื่อโหลดหน้าเว็บ ให้ตรวจสอบว่ามีภาษาที่เลือกไว้ใน localStorage หรือไม่
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLanguage = localStorage.getItem('selectedLanguage') || 'th'; // ค่าเริ่มต้นเป็นไทย
+            setLanguage(savedLanguage);
 
-        res.render('message', { title: 'Request Disapproved', message: `\nRequest ID ${request.id} has been successfully disapproved.` });
-    } catch (error) {
-        console.error("Error disapproving request:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to disapprove request.' });
-    }
-});
-
-
-// --- Admin Action Routes (Protected) ---
-app.post('/delete/:id', requireAdmin, async (req, res) => {
-    const requestId = parseInt(req.params.id, 10);
-    try {
-        await pool.execute('DELETE FROM requests WHERE id = ?', [requestId]);
-        res.redirect('/status');
-    } catch (error) {
-        console.error("Error deleting request:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to delete request.' });
-    }
-});
-
-app.post('/clear-all', requireAdmin, async (req, res) => {
-    try {
-        await pool.execute('TRUNCATE TABLE requests'); // TRUNCATE เพื่อล้างข้อมูลทั้งหมดและรีเซ็ต AUTO_INCREMENT
-        res.redirect('/status');
-    } catch (error) {
-        console.error("Error clearing all requests:", error);
-        res.status(500).render('message', { title: 'Error', message: 'Failed to clear all requests.' });
-    }
-});
-
-
-// --- Start Server ---
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
-//กล้วย
+            // เพิ่ม Event Listener สำหรับปุ่มเปลี่ยนภาษา
+            document.querySelectorAll('.dropdown-item[data-lang]').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault(); // ป้องกันการเปลี่ยนหน้า
+                    const lang = event.target.getAttribute('data-lang');
+                    setLanguage(lang);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
